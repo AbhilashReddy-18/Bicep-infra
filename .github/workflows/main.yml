@@ -1,0 +1,91 @@
+
+
+name: Azure Login Test
+
+on:
+ push:
+  branches:
+      - main
+
+
+jobs:
+  login-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Verify Login
+        run: |
+          az account show
+
+# name: Deploy Bicep Infrastructure
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# workflow_dispatch:
+
+# env:
+#   RESOURCE_GROUP: dev-ResourceGroup
+#   PARAM_FILE: KVParameters/dev.bicepparam
+
+# jobs:
+#   validate-and-deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
+
+#       - name: Azure Login
+#         uses: azure/login@v2
+#         with:
+#           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+#       - name: Verify Azure CLI
+#         run: az version
+
+#       - name: Verify Bicep Installation
+#         run: az bicep version
+
+#       - name: Build Main Template
+#         run: |
+#           az bicep build \
+#             --file main.bicep
+
+#       - name: Validate Parameter File
+#         run: |
+#           az bicep build-params \
+#             --file ${{ env.PARAM_FILE }}
+
+#       - name: ARM Validation
+#         run: |
+#           az deployment group validate \
+#             --resource-group ${{ env.RESOURCE_GROUP }} \
+#             --template-file main.bicep \
+#             --parameters ${{ env.PARAM_FILE }}
+
+#       - name: What-If
+#         run: |
+#           az deployment group what-if \
+#             --resource-group ${{ env.RESOURCE_GROUP }} \
+#             --template-file main.bicep \
+#             --parameters ${{ env.PARAM_FILE }}
+
+#       - name: Deploy Infrastructure
+#         run: |
+#           az deployment group create \
+#             --resource-group ${{ env.RESOURCE_GROUP }} \
+#             --template-file main.bicep \
+#             --parameters ${{ env.PARAM_FILE }}
