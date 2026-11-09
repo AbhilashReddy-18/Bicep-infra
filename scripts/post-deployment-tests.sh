@@ -3,6 +3,8 @@
 ENVIRONMENT=$1
 RESOURCE_GROUP=$2
 
+# hsjjss
+
 mkdir -p Artifact
 
 ENVIRONMENT=$1
