@@ -46,9 +46,9 @@ jobs:
 
       - name: Run Post Deployment Tests
         run: |
-          chmod +x Scripts/post-deployment-tests.sh
+          chmod +x scripts/post-deployment-tests.sh
 
-          ./Scripts/post-deployment-tests.sh \
+          ./scripts/post-deployment-tests.sh \
             "${{ github.event.inputs.environment }}" \
             "${{ github.event.inputs.resourceGroup }}"
 
