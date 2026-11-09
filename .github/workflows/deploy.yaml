@@ -1,0 +1,151 @@
+name: Resources (KV, SA) Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Select Environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+
+      location:
+        description: Azure Region
+        required: true
+        type: choice
+        options:
+          - westus
+          - eastus
+          - centralus
+
+permissions:
+  contents: read
+
+env:
+  TEMPLATE_FILE: main.bicep
+
+jobs:
+
+  validate:
+
+    runs-on: ubuntu-latest
+
+    env:
+      PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
+      DEPLOYMENT_NAME: rg-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install Bicep
+        run: az bicep install
+
+      - name: Display Deployment Details
+        run: |
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Location: ${{ github.event.inputs.location }}"
+          echo "Parameter File: $PARAM_FILE"
+          echo "Deployment Name: $DEPLOYMENT_NAME"
+
+      - name: Build Template
+        run: |
+          az bicep build \
+            --file $TEMPLATE_FILE
+
+      - name: Validate Parameter File
+        run: |
+          az bicep build-params \
+            --file $PARAM_FILE
+
+      - name: ARM Validation
+        run: |
+          az deployment sub validate \
+            --location ${{ github.event.inputs.location }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE
+
+      - name: What-If Analysis
+        run: |
+          mkdir -p Artifact
+
+          az deployment sub what-if \
+            --name $DEPLOYMENT_NAME \
+            --location ${{ github.event.inputs.location }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE \
+            > Artifact/whatif.txt
+
+      - name: Upload WhatIf Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatif-report
+          path: Artifact/whatif.txt
+
+  deploy:
+
+    needs: validate
+
+    runs-on: ubuntu-latest
+
+    environment: ${{ github.event.inputs.environment }}
+
+    env:
+      PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
+      DEPLOYMENT_NAME: rg-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Resource Group
+        run: |
+          az deployment sub create \
+            --name $DEPLOYMENT_NAME \
+            --location ${{ github.event.inputs.location }} \
+            --template-file main.bicep \
+            --parameters $PARAM_FILE \
+            --output json \
+            > Artifact/deployment-output.json
+
+      - name: Generate Deployment Metadata
+        run: | 
+          echo "Deployment Name : $DEPLOYMENT_NAME" > Artifact/deployment-info.txt
+          echo "Environment     : ${{ github.event.inputs.environment }}" >> Artifact/deployment-info.txt
+          echo "Location        : ${{ github.event.inputs.location }}" >> Artifact/deployment-info.txt
+          echo "Parameter File  : $PARAM_FILE" >> Artifact/deployment-info.txt
+          echo "Build Number    : ${{ github.run_number }}" >> Artifact/deployment-info.txt
+          echo "Run ID          : ${{ github.run_id }}" >> Artifact/deployment-info.txt
+          echo "Commit SHA      : ${{ github.sha }}" >> Artifact/deployment-info.txt
+          echo "Triggered By    : ${{ github.actor }}" >> Artifact/deployment-info.txt
+          echo "Date            : $(date)" >> Artifact/deployment-info.txt
+
+      - name: Verify Artifact
+        run: |
+          pwd
+          ls -R
+          ls -lah Artifact
+
+      - name: Upload Deployment Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: Artifact/
