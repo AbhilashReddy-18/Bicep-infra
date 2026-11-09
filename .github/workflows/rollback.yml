@@ -1,0 +1,107 @@
+name: Rollback Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Select Environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+
+      resourceGroup:
+        description: Resource Group Name
+        required: true
+        type: string
+
+      stableTag:
+        description: Stable Tag (e.g. infra-dev-15-stable)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+
+  rollback:
+
+    runs-on: ubuntu-latest
+
+    env:
+      PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
+      TEMPLATE_FILE: main.bicep
+      ROLLBACK_NAME: rollback-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Stable Tag
+        run: |
+          git fetch --tags
+
+          git checkout \
+            ${{ github.event.inputs.stableTag }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Display Rollback Details
+        run: |
+          echo "Environment      : ${{ github.event.inputs.environment }}"
+          echo "Resource Group   : ${{ github.event.inputs.resourceGroup }}"
+          echo "Stable Tag       : ${{ github.event.inputs.stableTag }}"
+          echo "Rollback Name    : $ROLLBACK_NAME"
+
+      - name: Validate Stable Version
+        run: |
+          az deployment group validate \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE
+
+      - name: Rollback What-If
+        run: |
+          az deployment group what-if \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE \
+            > Artifact/rollback-whatif.txt
+
+      - name: Execute Rollback
+        run: |
+          az deployment group create \
+            --name $ROLLBACK_NAME \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE \
+            --output json \
+            > Artifact/rollback-output.json
+
+      - name: Generate Rollback Metadata
+        run: |
+          echo "Rollback Name  : $ROLLBACK_NAME" > Artifact/rollback-info.txt
+          echo "Environment    : ${{ github.event.inputs.environment }}" >> Artifact/rollback-info.txt
+          echo "Resource Group : ${{ github.event.inputs.resourceGroup }}" >> Artifact/rollback-info.txt
+          echo "Stable Tag     : ${{ github.event.inputs.stableTag }}" >> Artifact/rollback-info.txt
+          echo "Run ID         : ${{ github.run_id }}" >> Artifact/rollback-info.txt
+          echo "Triggered By   : ${{ github.actor }}" >> Artifact/rollback-info.txt
+          echo "Date           : $(date -u)" >> Artifact/rollback-info.txt
+
+      - name: Upload Rollback Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-artifacts
+          path: Artifact/
