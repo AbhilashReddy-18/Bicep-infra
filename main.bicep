@@ -1,7 +1,7 @@
 @allowed([
-  'nimbus1'
-  'Orders'
-  'Payments'
+  'nimbus'
+  'orders'
+  'payments'
 ])
 param projectName string
 
@@ -55,6 +55,7 @@ module keyVaultModule 'SharedModules/keyVault.bicep' = {
 
 @minLength(3)
 @maxLength(24)
+@description('Storage account name must be lowercase and globally unique')
 param storageAccountName string
 
 //@description('The SKU name for the storage account.')
@@ -74,3 +75,7 @@ module storageModule 'SharedModules/storage.bicep' = {
     tags: tags
   }
 }
+
+output keyVaultName string = KeyVaultName
+
+output storageAccountName string = storageAccountName

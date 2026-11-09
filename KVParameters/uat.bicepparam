@@ -2,7 +2,7 @@ using '../main.bicep'
 
 param env = 'uat'
 
-param projectName = 'nimbus1'
+param projectName = 'nimbus'
 
 param enablePurgeProtection = true
 
