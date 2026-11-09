@@ -1,4 +1,4 @@
-name: Resources (KV, SA) Deployment
+name: Infrastructure Deployment
 
 on:
   workflow_dispatch:
@@ -12,14 +12,10 @@ on:
           - uat
           - prod
 
-      location:
-        description: Azure Region
+      resourceGroup:
+        description: Existing Resource Group Name
         required: true
-        type: choice
-        options:
-          - westus
-          - eastus
-          - centralus
+        type: string
 
 permissions:
   contents: read
@@ -35,11 +31,11 @@ jobs:
 
     env:
       PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
-      DEPLOYMENT_NAME: rg-${{ github.event.inputs.environment }}-${{ github.run_number }}
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
 
     steps:
 
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Azure Login
@@ -50,17 +46,21 @@ jobs:
       - name: Install Bicep
         run: az bicep install
 
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
       - name: Display Deployment Details
         run: |
-          echo "Environment: ${{ github.event.inputs.environment }}"
-          echo "Location: ${{ github.event.inputs.location }}"
-          echo "Parameter File: $PARAM_FILE"
-          echo "Deployment Name: $DEPLOYMENT_NAME"
+          echo "Environment      : ${{ github.event.inputs.environment }}"
+          echo "Resource Group   : ${{ github.event.inputs.resourceGroup }}"
+          echo "Parameter File   : $PARAM_FILE"
+          echo "Deployment Name  : $DEPLOYMENT_NAME"
 
-      - name: Build Template
+      - name: Build Main Template
         run: |
           az bicep build \
-            --file $TEMPLATE_FILE
+            --file $TEMPLATE_FILE \
+            --outfile Artifact/main.json
 
       - name: Validate Parameter File
         run: |
@@ -69,27 +69,26 @@ jobs:
 
       - name: ARM Validation
         run: |
-          az deployment sub validate \
-            --location ${{ github.event.inputs.location }} \
+          az deployment group validate \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
             --template-file $TEMPLATE_FILE \
             --parameters $PARAM_FILE
 
       - name: What-If Analysis
         run: |
-          mkdir -p Artifact
-
-          az deployment sub what-if \
-            --name $DEPLOYMENT_NAME \
-            --location ${{ github.event.inputs.location }} \
+          az deployment group what-if \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
             --template-file $TEMPLATE_FILE \
             --parameters $PARAM_FILE \
             > Artifact/whatif.txt
 
-      - name: Upload WhatIf Report
+      - name: Upload Validation Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: whatif-report
-          path: Artifact/whatif.txt
+          name: validation-artifacts
+          path: |
+            Artifact/whatif.txt
+            Artifact/main.json
 
   deploy:
 
@@ -101,11 +100,11 @@ jobs:
 
     env:
       PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
-      DEPLOYMENT_NAME: rg-${{ github.event.inputs.environment }}-${{ github.run_number }}
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
 
     steps:
 
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Create Artifact Directory
@@ -116,29 +115,35 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy Resource Group
+      - name: Deploy Infrastructure
         run: |
-          az deployment sub create \
+          az deployment group create \
             --name $DEPLOYMENT_NAME \
-            --location ${{ github.event.inputs.location }} \
-            --template-file main.bicep \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
             --parameters $PARAM_FILE \
             --output json \
             > Artifact/deployment-output.json
 
+      - name: Copy Parameter File Used
+        run: |
+          cp $PARAM_FILE Artifact/
+
       - name: Generate Deployment Metadata
-        run: | 
+        run: |
           echo "Deployment Name : $DEPLOYMENT_NAME" > Artifact/deployment-info.txt
           echo "Environment     : ${{ github.event.inputs.environment }}" >> Artifact/deployment-info.txt
-          echo "Location        : ${{ github.event.inputs.location }}" >> Artifact/deployment-info.txt
+          echo "Resource Group  : ${{ github.event.inputs.resourceGroup }}" >> Artifact/deployment-info.txt
+          echo "Template File   : $TEMPLATE_FILE" >> Artifact/deployment-info.txt
           echo "Parameter File  : $PARAM_FILE" >> Artifact/deployment-info.txt
+          echo "Branch          : ${{ github.ref_name }}" >> Artifact/deployment-info.txt
           echo "Build Number    : ${{ github.run_number }}" >> Artifact/deployment-info.txt
           echo "Run ID          : ${{ github.run_id }}" >> Artifact/deployment-info.txt
           echo "Commit SHA      : ${{ github.sha }}" >> Artifact/deployment-info.txt
           echo "Triggered By    : ${{ github.actor }}" >> Artifact/deployment-info.txt
-          echo "Date            : $(date)" >> Artifact/deployment-info.txt
+          echo "Date            : $(date -u)" >> Artifact/deployment-info.txt
 
-      - name: Verify Artifact
+      - name: Verify Artifact Files
         run: |
           pwd
           ls -R
