@@ -3,7 +3,7 @@ using '../main.bicep'
 param env = 'dev'
 
 
-param projectName = 'nimbus'
+param projectName = 'nimbusvm'
 
 param enablePurgeProtection = true
 

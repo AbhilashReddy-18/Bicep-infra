@@ -1,5 +1,5 @@
 @allowed([
-  'nimbus'
+  'nimbusvm'
   'orders'
   'payments'
 ])
