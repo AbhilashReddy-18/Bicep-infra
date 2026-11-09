@@ -1,0 +1,109 @@
+name: Release Validation & Stable Marking
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Select Environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+
+      resourceGroup:
+        description: Resource Group Name
+        required: true
+        type: string
+
+      deploymentName:
+        description: Deployment Name (e.g. infra-dev-15)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+
+  post-deployment-tests:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Run Post Deployment Tests
+        run: |
+          chmod +x Scripts/post-deployment-tests.sh
+
+          ./Scripts/post-deployment-tests.sh \
+            "${{ github.event.inputs.environment }}" \
+            "${{ github.event.inputs.resourceGroup }}"
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: Artifact/test-results.txt
+
+  manual-approval:
+
+    needs: post-deployment-tests
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: stable-approval
+
+    steps:
+
+      - name: Wait For Approval
+        run: |
+          echo "Release approved."
+
+  stable-release:
+
+    needs: manual-approval
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Generate Stable Release Manifest
+        run: |
+          cat << EOF > Artifact/stable-release.json
+          {
+            "status": "STABLE",
+            "environment": "${{ github.event.inputs.environment }}",
+            "deploymentName": "${{ github.event.inputs.deploymentName }}",
+            "runId": "${{ github.run_id }}",
+            "commitSha": "${{ github.sha }}",
+            "approvedBy": "${{ github.actor }}",
+            "approvedDate": "$(date -u)"
+          }
+          EOF
+
+      - name: Display Stable Manifest
+        run: |
+          cat Artifact/stable-release.json
+
+      - name: Upload Stable Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable-release
+          path: Artifact/stable-release.json
