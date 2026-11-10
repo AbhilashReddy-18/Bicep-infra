@@ -76,6 +76,33 @@ module storageModule 'SharedModules/storage.bicep' = {
   }
 }
 
+
+//App Service Module
+
+param WebAppName string
+
+param appservicePlanName string
+
+param skuplan object
+
+module appServiceModule 'SharedModules/App_service.bicep' = {
+  name: 'appServiceModule'
+  params: {
+    WebAppName: WebAppName
+    location: location
+    skuplan: skuplan
+    appservicePlanName: appservicePlanName
+    tags: tags
+  }
+}
+
+//webapp module
+
+
 output keyVaultName string = KeyVaultName
 
 output storageAccountName string = storageAccountName
+
+output webAppName string = WebAppName
+
+output appServicePlanName string = appservicePlanName

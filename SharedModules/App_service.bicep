@@ -1,35 +1,28 @@
 
-param WebAppName string = 'nimbus1app'
+param WebAppName string
 
 @description('The location of the storage account.')
-param location string = 'West US'
+param location string
 
 @description('The SKU name for the storage account.')
-param skuName string = 'F1'
+param skuplan object
 
-@allowed([
-    'dev'
-    'uat'
-    'prod'
-])
-param environment string = 'dev'
+param appservicePlanName string
 
-var tags = {
-env: environment
-Location: location
-}
+
+
+
+param tags object
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2021-02-01' = {
-  name: '${WebAppName}${environment}'
+  name: appservicePlanName
   location: location
-  sku: {
-    name: skuName
-  }
+  sku: skuplan
 
 }
 
 resource webApp 'Microsoft.Web/sites@2021-02-01' = {
-  name: '${WebAppName}Web${environment}'
+  name: WebAppName
   location: location
   properties: {
     serverFarmId: appServicePlan.id
