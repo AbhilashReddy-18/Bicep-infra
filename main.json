@@ -5,16 +5,16 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "10773025346128642925"
+      "templateHash": "334527439851571629"
     }
   },
   "parameters": {
     "projectName": {
       "type": "string",
       "allowedValues": [
-        "Nimbus",
-        "Orders",
-        "Payments"
+        "nimbusvm",
+        "orders",
+        "payments"
       ]
     },
     "env": {
@@ -50,7 +50,10 @@
     "storageAccountName": {
       "type": "string",
       "minLength": 3,
-      "maxLength": 24
+      "maxLength": 24,
+      "metadata": {
+        "description": "Storage account name must be lowercase and globally unique"
+      }
     },
     "skuName": {
       "type": "string",
@@ -59,6 +62,15 @@
         "Standard_GRS",
         "Standard_ZRS"
       ]
+    },
+    "WebAppName": {
+      "type": "string"
+    },
+    "appservicePlanName": {
+      "type": "string"
+    },
+    "skuplan": {
+      "type": "object"
     }
   },
   "variables": {
@@ -239,6 +251,108 @@
           ]
         }
       }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "appServiceModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "WebAppName": {
+            "value": "[parameters('WebAppName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "skuplan": {
+            "value": "[parameters('skuplan')]"
+          },
+          "appservicePlanName": {
+            "value": "[parameters('appservicePlanName')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "1284182050392626972"
+            }
+          },
+          "parameters": {
+            "WebAppName": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "The location of the storage account."
+              }
+            },
+            "skuplan": {
+              "type": "object",
+              "metadata": {
+                "description": "The SKU name for the storage account."
+              }
+            },
+            "appservicePlanName": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2021-02-01",
+              "name": "[parameters('appservicePlanName')]",
+              "location": "[parameters('location')]",
+              "sku": "[parameters('skuplan')]"
+            },
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2021-02-01",
+              "name": "[parameters('WebAppName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appservicePlanName'))]"
+              },
+              "tags": "[parameters('tags')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('appservicePlanName'))]"
+              ]
+            }
+          ]
+        }
+      }
     }
-  ]
+  ],
+  "outputs": {
+    "keyVaultName": {
+      "type": "string",
+      "value": "[variables('KeyVaultName')]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "value": "[parameters('storageAccountName')]"
+    },
+    "webAppName": {
+      "type": "string",
+      "value": "[parameters('WebAppName')]"
+    },
+    "appServicePlanName": {
+      "type": "string",
+      "value": "[parameters('appservicePlanName')]"
+    }
+  }
 }
