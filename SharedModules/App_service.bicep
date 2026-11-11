@@ -20,6 +20,10 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-02-01' = {
   sku: skuplan
   kind: 'linux'
 
+   properties: {
+    reserved: true
+  }
+
 }
 
 resource webApp 'Microsoft.Web/sites@2021-02-01' = {
@@ -28,6 +32,11 @@ resource webApp 'Microsoft.Web/sites@2021-02-01' = {
   kind: 'app,linux'
   properties: {
     serverFarmId: appServicePlan.id
+
+    siteConfig: {
+      linuxFxVersion: 'PYTHON|3.13'
+    }
+
   }
   tags: tags
 }
