@@ -83,13 +83,15 @@ param WebAppName string
 
 param appservicePlanName string
 
+param appServiceLocation string
+
 param skuplan object
 
 module appServiceModule 'SharedModules/App_service.bicep' = {
   name: 'appServiceModule'
   params: {
     WebAppName: WebAppName
-    location: location
+    appServiceLocation: appServiceLocation
     skuplan: skuplan
     appservicePlanName: appservicePlanName
     tags: tags

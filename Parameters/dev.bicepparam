@@ -13,7 +13,10 @@ param publicNetworkAccess = 'Enabled'
 
 param enableSoftDelete = true
 
-param location = 'West US'  
+param location = 'West US' 
+
+param appServiceLocation = 'West US'
+
 
 
 param storageAccountName = '${projectName}${env}storage'
