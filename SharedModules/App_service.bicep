@@ -18,12 +18,14 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-02-01' = {
   name: appservicePlanName
   location: appServiceLocation
   sku: skuplan
+  kind: 'linux'
 
 }
 
 resource webApp 'Microsoft.Web/sites@2021-02-01' = {
   name: WebAppName
   location: appServiceLocation
+  kind: 'app,linux'
   properties: {
     serverFarmId: appServicePlan.id
   }

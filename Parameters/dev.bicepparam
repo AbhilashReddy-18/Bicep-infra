@@ -33,9 +33,9 @@ param skuplan = {
 
 
 
-param appservicePlanName = '${projectName}${env}appserviceplan'
+param appservicePlanName = '${projectName}${env}apppserviceplan'
 
-param WebAppName = '${projectName}${env}webapp'
+param WebAppName = '${projectName}${env}webappp'
 
 
 
