@@ -24,9 +24,10 @@ param storageAccountName = '${projectName}${env}storage'
 // }
 
 param skuplan = {
-    name: 'B1'
-    tier: 'Basic'
+    name: 'F1'
+    tier: 'Free'
   }
+
 
 
 param appservicePlanName = '${projectName}${env}appserviceplan'

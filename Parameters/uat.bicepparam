@@ -28,8 +28,8 @@ param skuName = 'Standard_LRS'
 
 
 param skuplan = {
-    name: 'B1'
-    tier: 'Basic'
+    name: 'F1'
+    tier: 'Free'
   }
 
 
