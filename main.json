@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "334527439851571629"
+      "templateHash": "15476681267213851995"
     }
   },
   "parameters": {
@@ -67,6 +67,9 @@
       "type": "string"
     },
     "appservicePlanName": {
+      "type": "string"
+    },
+    "appServiceLocation": {
       "type": "string"
     },
     "skuplan": {
@@ -265,8 +268,8 @@
           "WebAppName": {
             "value": "[parameters('WebAppName')]"
           },
-          "location": {
-            "value": "[parameters('location')]"
+          "appServiceLocation": {
+            "value": "[parameters('appServiceLocation')]"
           },
           "skuplan": {
             "value": "[parameters('skuplan')]"
@@ -285,23 +288,23 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "1284182050392626972"
+              "templateHash": "12829075972470465687"
             }
           },
           "parameters": {
             "WebAppName": {
               "type": "string"
             },
-            "location": {
+            "appServiceLocation": {
               "type": "string",
               "metadata": {
-                "description": "The location of the storage account."
+                "description": "The location of the App service and web app."
               }
             },
             "skuplan": {
               "type": "object",
               "metadata": {
-                "description": "The SKU name for the storage account."
+                "description": "The SKU name for the App service."
               }
             },
             "appservicePlanName": {
@@ -316,14 +319,14 @@
               "type": "Microsoft.Web/serverfarms",
               "apiVersion": "2021-02-01",
               "name": "[parameters('appservicePlanName')]",
-              "location": "[parameters('location')]",
+              "location": "[parameters('appServiceLocation')]",
               "sku": "[parameters('skuplan')]"
             },
             {
               "type": "Microsoft.Web/sites",
               "apiVersion": "2021-02-01",
               "name": "[parameters('WebAppName')]",
-              "location": "[parameters('location')]",
+              "location": "[parameters('appServiceLocation')]",
               "properties": {
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appservicePlanName'))]"
               },
