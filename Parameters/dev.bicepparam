@@ -15,7 +15,7 @@ param enableSoftDelete = true
 
 param location = 'West US' 
 
-param appServiceLocation = 'West US'
+param appServiceLocation = 'West US 3'
 
 
 

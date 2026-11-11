@@ -14,7 +14,7 @@ param enableSoftDelete = true
 
 param location = 'East US' 
 
-param appServiceLocation = 'West US'
+param appServiceLocation = 'West US 3'
 
 param storageAccountName = '${projectName}${env}storage'
 
