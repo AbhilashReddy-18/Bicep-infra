@@ -13,7 +13,7 @@ param publicNetworkAccess = 'Enabled'
 
 param enableSoftDelete = true
 
-param location = 'West US' 
+param location = 'East US' 
 
 param appServiceLocation = 'West US 3'
 

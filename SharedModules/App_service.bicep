@@ -34,7 +34,7 @@ resource webApp 'Microsoft.Web/sites@2021-02-01' = {
     serverFarmId: appServicePlan.id
 
     siteConfig: {
-      linuxFxVersion: 'PYTHON|3.13'
+      linuxFxVersion: 'PYTHON|3.12'
     }
 
   }
