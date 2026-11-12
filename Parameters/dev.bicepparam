@@ -5,7 +5,7 @@ param env = 'dev'
 
 param projectName = 'nimbusvm'
 
-param enablePurgeProtection = true
+param enablePurgeProtection = false
 
 param enableRBACAuthorization = false
 
