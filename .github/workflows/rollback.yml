@@ -17,13 +17,21 @@ on:
         required: true
         type: string
 
-      stableTag:
-        description: Stable Tag (e.g. infra-dev-15-stable)
+      # stableTag:
+      #   description: Stable Tag (e.g. infra-dev-15-stable)
+      #   required: true
+      #   type: string
+
+      recoveryBranch:
+        description: Create Recovery Branch
         required: true
-        type: string
+        type: choice
+        options:
+          - No
+          - Yes
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
 
@@ -38,17 +46,27 @@ jobs:
 
     steps:
 
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Checkout Stable Tag
+      - name: Checkout Latest Stable Tag
         run: |
+
+          TAG_NAME="${{ github.event.inputs.environment }}-latest-stable"
+
           git fetch --tags
 
-          git checkout \
-            ${{ github.event.inputs.stableTag }}
+          git checkout "$TAG_NAME"
+
+          echo "Using Stable Tag: $TAG_NAME"
+
+      - name: Verify Stable Version
+        run: |
+          git rev-parse HEAD
+          git describe --tags --always
 
       - name: Azure Login
         uses: azure/login@v2
@@ -62,7 +80,7 @@ jobs:
         run: |
           echo "Environment      : ${{ github.event.inputs.environment }}"
           echo "Resource Group   : ${{ github.event.inputs.resourceGroup }}"
-          echo "Stable Tag       : ${{ github.event.inputs.stableTag }}"
+          echo "Stable Tag       : ${{ github.event.inputs.environment }}-latest-stable"
           echo "Rollback Name    : $ROLLBACK_NAME"
 
       - name: Validate Stable Version
@@ -90,18 +108,40 @@ jobs:
             --output json \
             > Artifact/rollback-output.json
 
+      
+      - name: Create Recovery Branch
+        if: github.event.inputs.recoveryBranch == 'Yes'
+        run: |
+          BRANCH_NAME="recovery-${ROLLBACK_NAME}"
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git checkout -b "$BRANCH_NAME"
+
+          git push origin "$BRANCH_NAME"
+
+          echo "Recovery Branch : $BRANCH_NAME" >> Artifact/rollback-info.txt
+
+
       - name: Generate Rollback Metadata
         run: |
+
           echo "Rollback Name  : $ROLLBACK_NAME" > Artifact/rollback-info.txt
           echo "Environment    : ${{ github.event.inputs.environment }}" >> Artifact/rollback-info.txt
           echo "Resource Group : ${{ github.event.inputs.resourceGroup }}" >> Artifact/rollback-info.txt
-          echo "Stable Tag     : ${{ github.event.inputs.stableTag }}" >> Artifact/rollback-info.txt
+          echo "Stable Tag     : ${{ github.event.inputs.environment }}-latest-stable" >> Artifact/rollback-info.txt
           echo "Run ID         : ${{ github.run_id }}" >> Artifact/rollback-info.txt
           echo "Triggered By   : ${{ github.actor }}" >> Artifact/rollback-info.txt
           echo "Date           : $(date -u)" >> Artifact/rollback-info.txt
+          if [ "${{ github.event.inputs.recoveryBranch }}" = "Yes" ]; then
+            echo "Recovery Branch : recovery-${ROLLBACK_NAME}" >> Artifact/rollback-info.txt
+          fi
 
       - name: Upload Rollback Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: rollback-artifacts
           path: Artifact/
+
+      

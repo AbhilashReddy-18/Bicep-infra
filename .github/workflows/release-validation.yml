@@ -1,4 +1,4 @@
-name: Release Validation & Stable Marking
+name: Infrastructure Deployment
 
 on:
   workflow_dispatch:
@@ -13,23 +13,143 @@ on:
           - prod
 
       resourceGroup:
-        description: Resource Group Name
-        required: true
-        type: string
-
-      deploymentName:
-        description: Deployment Name (e.g. infra-dev-15)
+        description: Existing Resource Group Name
         required: true
         type: string
 
 permissions:
   contents: write
 
+env:
+  TEMPLATE_FILE: main.bicep
+
 jobs:
+
+  validate:
+
+    runs-on: ubuntu-latest
+
+    env:
+      PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install Bicep
+        run: az bicep install
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Display Deployment Details
+        run: |
+          echo "Environment      : ${{ github.event.inputs.environment }}"
+          echo "Resource Group   : ${{ github.event.inputs.resourceGroup }}"
+          echo "Deployment Name  : $DEPLOYMENT_NAME"
+
+      - name: Build Main Template
+        run: |
+          az bicep build \
+            --file $TEMPLATE_FILE \
+            --outfile Artifact/main.json
+
+      - name: Validate Parameter File
+        run: |
+          az bicep build-params \
+            --file $PARAM_FILE
+
+      - name: ARM Validation
+        run: |
+          az deployment group validate \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE
+
+      - name: What-If Analysis
+        run: |
+          az deployment group what-if \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE \
+            > Artifact/whatif.txt
+
+      - name: Upload Validation Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-artifacts
+          path: |
+            Artifact/whatif.txt
+            Artifact/main.json
+
+  deploy:
+
+    needs: validate
+
+    runs-on: ubuntu-latest
+
+    environment: ${{ github.event.inputs.environment }}
+
+    env:
+      PARAM_FILE: Parameters/${{ github.event.inputs.environment }}.bicepparam
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Deploy Infrastructure
+        run: |
+          az deployment group create \
+            --name $DEPLOYMENT_NAME \
+            --resource-group ${{ github.event.inputs.resourceGroup }} \
+            --template-file $TEMPLATE_FILE \
+            --parameters $PARAM_FILE \
+            --output json \
+            > Artifact/deployment-output.json
+
+      - name: Generate Deployment Metadata
+        run: |
+          cat << EOF > Artifact/deployment-info.txt
+          Deployment Name : $DEPLOYMENT_NAME
+          Environment     : ${{ github.event.inputs.environment }}
+          Resource Group  : ${{ github.event.inputs.resourceGroup }}
+          Commit SHA      : ${{ github.sha }}
+          Run ID          : ${{ github.run_id }}
+          Triggered By    : ${{ github.actor }}
+          Date            : $(date -u)
+          EOF
+
+      - name: Upload Deployment Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: Artifact/
 
   post-deployment-tests:
 
+    needs: deploy
+
     runs-on: ubuntu-latest
+
+    env:
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
 
     steps:
 
@@ -79,6 +199,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
     steps:
 
       - name: Checkout Repository
@@ -89,34 +212,40 @@ jobs:
       - name: Create Artifact Directory
         run: mkdir -p Artifact
 
-      - name: Generate Stable Release Manifest
+      - name: Generate Stable Manifest
         run: |
           cat << EOF > Artifact/stable-release.json
           {
             "status": "STABLE",
             "environment": "${{ github.event.inputs.environment }}",
-            "deploymentName": "${{ github.event.inputs.deploymentName }}",
-            "runId": "${{ github.run_id }}",
+            "deploymentName": "$DEPLOYMENT_NAME",
+            "stableTag": "$DEPLOYMENT_NAME-stable",
+            "latestStableTag": "${{ github.event.inputs.environment }}-latest-stable",
             "commitSha": "${{ github.sha }}",
+            "runId": "${{ github.run_id }}",
             "approvedBy": "${{ github.actor }}",
             "approvedDate": "$(date -u)"
           }
           EOF
 
-      - name: Display Stable Manifest
+      - name: Create Stable Tags
         run: |
-          cat Artifact/stable-release.json
 
-      - name: Create Stable Release Tag
-        run: |
-          TAG_NAME="${{ github.event.inputs.deploymentName }}-stable"
+          DEPLOYMENT_TAG="$DEPLOYMENT_NAME-stable"
+          LATEST_TAG="${{ github.event.inputs.environment }}-latest-stable"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git tag -a "$TAG_NAME" -m "Stable Release $TAG_NAME"
+          git tag -a "$DEPLOYMENT_TAG" \
+            -m "Stable Release $DEPLOYMENT_TAG"
 
-          git push origin "$TAG_NAME"
+          git tag -fa "$LATEST_TAG" \
+            -m "Latest Stable Release"
+
+          git push origin "$DEPLOYMENT_TAG"
+
+          git push origin "$LATEST_TAG" --force
 
       - name: Upload Stable Release Artifact
         uses: actions/upload-artifact@v4

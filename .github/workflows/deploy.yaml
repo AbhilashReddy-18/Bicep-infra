@@ -18,7 +18,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   TEMPLATE_FILE: main.bicep
@@ -53,7 +53,6 @@ jobs:
         run: |
           echo "Environment      : ${{ github.event.inputs.environment }}"
           echo "Resource Group   : ${{ github.event.inputs.resourceGroup }}"
-          echo "Parameter File   : $PARAM_FILE"
           echo "Deployment Name  : $DEPLOYMENT_NAME"
 
       - name: Build Main Template
@@ -107,13 +106,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Create Artifact Directory
-        run: mkdir -p Artifact
-
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
 
       - name: Deploy Infrastructure
         run: |
@@ -125,32 +124,131 @@ jobs:
             --output json \
             > Artifact/deployment-output.json
 
-      - name: Copy Parameter File Used
-        run: |
-          cp $PARAM_FILE Artifact/
-
       - name: Generate Deployment Metadata
         run: |
-          echo "Deployment Name : $DEPLOYMENT_NAME" > Artifact/deployment-info.txt
-          echo "Environment     : ${{ github.event.inputs.environment }}" >> Artifact/deployment-info.txt
-          echo "Resource Group  : ${{ github.event.inputs.resourceGroup }}" >> Artifact/deployment-info.txt
-          echo "Template File   : $TEMPLATE_FILE" >> Artifact/deployment-info.txt
-          echo "Parameter File  : $PARAM_FILE" >> Artifact/deployment-info.txt
-          echo "Branch          : ${{ github.ref_name }}" >> Artifact/deployment-info.txt
-          echo "Build Number    : ${{ github.run_number }}" >> Artifact/deployment-info.txt
-          echo "Run ID          : ${{ github.run_id }}" >> Artifact/deployment-info.txt
-          echo "Commit SHA      : ${{ github.sha }}" >> Artifact/deployment-info.txt
-          echo "Triggered By    : ${{ github.actor }}" >> Artifact/deployment-info.txt
-          echo "Date            : $(date -u)" >> Artifact/deployment-info.txt
-
-      - name: Verify Artifact Files
-        run: |
-          pwd
-          ls -R
-          ls -lah Artifact
+          cat << EOF > Artifact/deployment-info.txt
+          Deployment Name : $DEPLOYMENT_NAME
+          Environment     : ${{ github.event.inputs.environment }}
+          Resource Group  : ${{ github.event.inputs.resourceGroup }}
+          Commit SHA      : ${{ github.sha }}
+          Run ID          : ${{ github.run_id }}
+          Triggered By    : ${{ github.actor }}
+          Date            : $(date -u)
+          EOF
 
       - name: Upload Deployment Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: deployment-artifacts
           path: Artifact/
+
+  post-deployment-tests:
+
+    needs: deploy
+
+    runs-on: ubuntu-latest
+
+    env:
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Run Post Deployment Tests
+        run: |
+          chmod +x scripts/post-deployment-tests.sh
+
+          ./scripts/post-deployment-tests.sh \
+            "${{ github.event.inputs.environment }}" \
+            "${{ github.event.inputs.resourceGroup }}"
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: Artifact/test-results.txt
+
+  manual-approval:
+
+    needs: post-deployment-tests
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: stable-approval
+
+    steps:
+
+      - name: Approval Granted
+        run: |
+          echo "Deployment approved."
+
+  stable-release:
+
+    needs: manual-approval
+
+    runs-on: ubuntu-latest
+
+    env:
+      DEPLOYMENT_NAME: infra-${{ github.event.inputs.environment }}-${{ github.run_number }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Artifact Directory
+        run: mkdir -p Artifact
+
+      - name: Generate Stable Manifest
+        run: |
+          cat << EOF > Artifact/stable-release.json
+          {
+            "status": "STABLE",
+            "environment": "${{ github.event.inputs.environment }}",
+            "deploymentName": "$DEPLOYMENT_NAME",
+            "stableTag": "$DEPLOYMENT_NAME-stable",
+            "latestStableTag": "${{ github.event.inputs.environment }}-latest-stable",
+            "commitSha": "${{ github.sha }}",
+            "runId": "${{ github.run_id }}",
+            "approvedBy": "${{ github.actor }}",
+            "approvedDate": "$(date -u)"
+          }
+          EOF
+
+      - name: Create Stable Tags
+        run: |
+
+          DEPLOYMENT_TAG="$DEPLOYMENT_NAME-stable"
+          LATEST_TAG="${{ github.event.inputs.environment }}-latest-stable"
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git tag -a "$DEPLOYMENT_TAG" \
+            -m "Stable Release $DEPLOYMENT_TAG"
+
+          git tag -fa "$LATEST_TAG" \
+            -m "Latest Stable Release"
+
+          git push origin "$DEPLOYMENT_TAG"
+
+          git push origin "$LATEST_TAG" --force
+
+      - name: Upload Stable Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable-release
+          path: Artifact/stable-release.json
