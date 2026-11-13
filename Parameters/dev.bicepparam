@@ -11,7 +11,7 @@ param enableRBACAuthorization = false
 
 param publicNetworkAccess = 'Enabled'
 
-param enableSoftDelete = true
+param enableSoftDelete = false
 
 param location = 'West US' 
 
