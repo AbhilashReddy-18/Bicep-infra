@@ -245,6 +245,8 @@ jobs:
 
           git push origin "$DEPLOYMENT_TAG"
 
+          git push origin :refs/tags/$LATEST_TAG || true
+
           git push origin "$LATEST_TAG" --force
 
       - name: Upload Stable Release Artifact

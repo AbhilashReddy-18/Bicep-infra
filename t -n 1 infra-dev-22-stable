@@ -1,0 +1,25 @@
+[33mtag dev-latest-stable[m
+Tagger: github-actions <github-actions@github.com>
+Date:   Fri Nov 13 05:22:11 2026 +0000
+
+Latest Stable Release
+
+[33mcommit 3d9642d4662efce8d3ea068669d9216d003b667f[m[33m ([m[1;33mtag: infra-dev-20-stable[m[33m, [m[1;33mtag: dev-latest-stable[m[33m)[m
+Author: Abhilash Reddy Moddu <abhilash.moddu@valuemomentum.com>
+Date:   Fri Nov 13 10:46:43 2026 +0530
+
+    changed the properties of key vault so it wont intefere with deployment
+
+[1mdiff --git a/Parameters/dev.bicepparam b/Parameters/dev.bicepparam[m
+[1mindex 6547aaf..7ea3614 100644[m
+[1m--- a/Parameters/dev.bicepparam[m
+[1m+++ b/Parameters/dev.bicepparam[m
+[36m@@ -5,7 +5,7 @@[m [mparam env = 'dev'[m
+ [m
+ param projectName = 'nimbusvm'[m
+ [m
+[31m-param enablePurgeProtection = false[m
+[32m+[m[32mparam enablePurgeProtection = true[m
+ [m
+ param enableRBACAuthorization = false[m
+ [m
