@@ -25,10 +25,7 @@ on:
       recoveryBranch:
         description: Create Recovery Branch
         required: true
-        type: choice
-        options:
-          - No
-          - Yes
+        type: boolean
 
 permissions:
   contents: write
@@ -112,7 +109,7 @@ jobs:
       - name: Create Recovery Branch
         if: github.event.inputs.recoveryBranch == 'Yes'
         run: |
-          BRANCH_NAME="recovery-${ROLLBACK_NAME}"
+          BRANCH_NAME="recovery-${{ github.event.inputs.environment }}-${{ github.run_number }}"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
