@@ -105,9 +105,13 @@ jobs:
             --output json \
             > Artifact/rollback-output.json
 
+      - name: Debug Recovery Input
+        run: |
+          echo "Recovery Branch = '${{ github.event.inputs.recoveryBranch }}'"
+
       
       - name: Create Recovery Branch
-        if: github.event.inputs.recoveryBranch == 'Yes'
+        if: inputs.recoveryBranch
         run: |
           BRANCH_NAME="recovery-${{ github.event.inputs.environment }}-${{ github.run_number }}"
 
@@ -131,7 +135,7 @@ jobs:
           echo "Run ID         : ${{ github.run_id }}" >> Artifact/rollback-info.txt
           echo "Triggered By   : ${{ github.actor }}" >> Artifact/rollback-info.txt
           echo "Date           : $(date -u)" >> Artifact/rollback-info.txt
-          if [ "${{ github.event.inputs.recoveryBranch }}" = "Yes" ]; then
+          if [ "${{ github.event.inputs.recoveryBranch }}" = "true" ]; then
             echo "Recovery Branch : recovery-${ROLLBACK_NAME}" >> Artifact/rollback-info.txt
           fi
 
