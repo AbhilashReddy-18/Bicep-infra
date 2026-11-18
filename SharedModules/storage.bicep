@@ -26,6 +26,6 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
   kind: 'StorageV2'
   tags: tags
   properties: {
-    accessTier: 'Cool'
+    accessTier: 'Hot'
   }
 }
