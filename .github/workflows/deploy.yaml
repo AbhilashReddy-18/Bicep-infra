@@ -232,22 +232,49 @@ jobs:
         run: |
 
           DEPLOYMENT_TAG="$DEPLOYMENT_NAME-stable"
+
           LATEST_TAG="${{ github.event.inputs.environment }}-latest-stable"
+
+          PREVIOUS_TAG="${{ github.event.inputs.environment }}-previous-stable"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
+          # Create immutable deployment tag
+
           git tag -a "$DEPLOYMENT_TAG" \
             -m "Stable Release $DEPLOYMENT_TAG"
+
+          git push origin "$DEPLOYMENT_TAG"
+
+          # Capture current latest stable commit before moving it
+
+          CURRENT_STABLE_COMMIT=$(git rev-list -n 1 "$LATEST_TAG" 2>/dev/null || true)
+
+          echo "Current Stable Commit: $CURRENT_STABLE_COMMIT"
+
+          # Update previous stable tag if latest stable exists
+
+          if [ -n "$CURRENT_STABLE_COMMIT" ]; then
+
+            git tag -fa "$PREVIOUS_TAG" \
+              "$CURRENT_STABLE_COMMIT" \
+              -m "Previous Stable Release"
+
+            git push origin :refs/tags/$PREVIOUS_TAG || true
+
+            git push origin "$PREVIOUS_TAG"
+
+          fi
+
+          # Update latest stable tag to current deployment
 
           git tag -fa "$LATEST_TAG" \
             -m "Latest Stable Release"
 
-          git push origin "$DEPLOYMENT_TAG"
-
           git push origin :refs/tags/$LATEST_TAG || true
 
-          git push origin "$LATEST_TAG" --force
+          git push origin "$LATEST_TAG"
 
       - name: Upload Stable Release Artifact
         uses: actions/upload-artifact@v4
