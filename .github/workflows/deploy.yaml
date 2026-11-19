@@ -20,7 +20,6 @@ on:
 permissions:
   contents: write
   actions: write
-  workflows: write
 
 env:
   TEMPLATE_FILE: main.bicep
