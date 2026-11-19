@@ -20,6 +20,7 @@ on:
 permissions:
   contents: write
   actions: write
+  workflows: write
 
 env:
   TEMPLATE_FILE: main.bicep
@@ -229,6 +230,12 @@ jobs:
           }
           EOF
 
+      - name: Debug
+        run: |
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          git show --name-only --oneline HEAD
+
       - name: Create Stable Tags
         run: |
 
@@ -264,7 +271,7 @@ jobs:
 
             git push origin :refs/tags/$PREVIOUS_TAG || true
 
-            git push origin "$PREVIOUS_TAG"
+            git push origin "$PREVIOUS_TAG" --force
 
           fi
 
@@ -275,7 +282,7 @@ jobs:
 
           git push origin :refs/tags/$LATEST_TAG || true
 
-          git push origin "$LATEST_TAG"
+          git push origin "$LATEST_TAG" --force
 
       - name: Upload Stable Release Artifact
         uses: actions/upload-artifact@v4
