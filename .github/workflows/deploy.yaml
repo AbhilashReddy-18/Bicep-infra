@@ -242,6 +242,9 @@ jobs:
 
          DEPLOYMENT_TAG="$DEPLOYMENT_NAME-stable"
 
+         git config user.name "github-actions"
+         git config user.email "github-actions@github.com"
+
           git tag -a "$DEPLOYMENT_TAG" \
             -m "Stable Release $DEPLOYMENT_TAG"
 
