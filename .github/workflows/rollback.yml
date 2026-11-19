@@ -1,5 +1,7 @@
 name: Rollback Infrastructure
 
+run-name: Rollback ${{ github.event.inputs.environment }} | ${{ github.event.inputs.stableTag }}
+
 on:
   workflow_dispatch:
     inputs:
