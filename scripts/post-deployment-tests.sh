@@ -1,58 +1,145 @@
 #!/bin/bash
 
+set -e
+
 ENVIRONMENT=$1
 RESOURCE_GROUP=$2
 
-# hsjjss
-
 mkdir -p Artifact
-
-ENVIRONMENT=$1
 
 PROJECT_NAME="nimbusvm"
 
 KEYVAULT_NAME="${PROJECT_NAME}${ENVIRONMENT}-kv"
 STORAGE_ACCOUNT_NAME="${PROJECT_NAME}${ENVIRONMENT}storage"
+APP_SERVICE_NAME="${PROJECT_NAME}${ENVIRONMENT}webappp"
 
-echo "$KEYVAULT_NAME"
-echo "$STORAGE_ACCOUNT_NAME"
+RESULT_FILE="Artifact/test-results.txt"
 
-echo "Post Deployment Test Results" > Artifact/test-results.txt
-echo "============================" >> Artifact/test-results.txt
-echo "" >> Artifact/test-results.txt
+OVERALL_STATUS="PASS"
 
-echo "Environment : $ENVIRONMENT" >> Artifact/test-results.txt
-echo "Resource Group : $RESOURCE_GROUP" >> Artifact/test-results.txt
-echo "" >> Artifact/test-results.txt
+echo "Post Deployment Test Results" > "$RESULT_FILE"
+echo "============================" >> "$RESULT_FILE"
+echo "" >> "$RESULT_FILE"
 
-echo "Validating Key Vault..." >> Artifact/test-results.txt
+echo "Environment    : $ENVIRONMENT" >> "$RESULT_FILE"
+echo "Resource Group : $RESOURCE_GROUP" >> "$RESULT_FILE"
+echo "Execution Time : $(date -u)" >> "$RESULT_FILE"
+echo "" >> "$RESULT_FILE"
 
-az keyvault show \
-  --name "$KEYVAULT_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  > /dev/null
+pass() {
+    echo "$1 : PASS" >> "$RESULT_FILE"
+}
 
-if [ $? -eq 0 ]; then
-  echo "Key Vault Validation : PASS" >> Artifact/test-results.txt
+fail() {
+    echo "$1 : FAIL" >> "$RESULT_FILE"
+    OVERALL_STATUS="FAIL"
+}
+
+echo "Starting post-deployment validation..."
+
+#
+# Key Vault Validation
+#
+
+if az keyvault show \
+    --name "$KEYVAULT_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    >/dev/null 2>&1; then
+
+    pass "Key Vault Exists"
 else
-  echo "Key Vault Validation : FAIL" >> Artifact/test-results.txt
-  exit 1
+    fail "Key Vault Exists"
 fi
 
-echo "Validating Storage Account..." >> Artifact/test-results.txt
+KV_ENDPOINT=$(az keyvault show \
+    --name "$KEYVAULT_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query properties.vaultUri \
+    -o tsv)
 
-az storage account show \
-  --name "$STORAGE_ACCOUNT_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  > /dev/null
-
-if [ $? -eq 0 ]; then
-  echo "Storage Account Validation : PASS" >> Artifact/test-results.txt
+if curl -s --head --connect-timeout 10 "$KV_ENDPOINT" >/dev/null 2>&1; then
+    pass "Key Vault Endpoint Reachable"
 else
-  echo "Storage Account Validation : FAIL" >> Artifact/test-results.txt
-  exit 1
+    fail "Key Vault Endpoint Reachable"
 fi
 
-echo "" >> Artifact/test-results.txt
-echo "Overall Status : PASS" >> Artifact/test-results.txt
-echo "Execution Time : $(date -u)" >> Artifact/test-results.txt
+#
+# Storage Account Validation
+#
+
+if az storage account show \
+    --name "$STORAGE_ACCOUNT_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    >/dev/null 2>&1; then
+
+    pass "Storage Account Exists"
+else
+    fail "Storage Account Exists"
+fi
+
+STORAGE_ENDPOINT=$(az storage account show \
+    --name "$STORAGE_ACCOUNT_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query primaryEndpoints.blob \
+    -o tsv)
+
+if curl -s --head --connect-timeout 10 "$STORAGE_ENDPOINT" >/dev/null 2>&1; then
+    pass "Storage Endpoint Reachable"
+else
+    fail "Storage Endpoint Reachable"
+fi
+
+#
+# App Service Validation
+#
+
+if az webapp show \
+    --name "$APP_SERVICE_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    >/dev/null 2>&1; then
+
+    pass "App Service Exists"
+else
+    fail "App Service Exists"
+fi
+
+APP_URL="https://${APP_SERVICE_NAME}.azurewebsites.net"
+
+APP_STATUS=$(curl -s \
+    -o /dev/null \
+    -w "%{http_code}" \
+    "$APP_URL")
+
+if [[ "$APP_STATUS" == "200" || "$APP_STATUS" == "301" || "$APP_STATUS" == "302" ]]; then
+    pass "App Service Reachable (HTTP $APP_STATUS)"
+else
+    fail "App Service Reachable (HTTP $APP_STATUS)"
+fi
+
+#
+# Optional Health Endpoint Test
+#
+
+HEALTH_STATUS=$(curl -s \
+    -o /dev/null \
+    -w "%{http_code}" \
+    "$APP_URL/health" || true)
+
+if [[ "$HEALTH_STATUS" == "200" ]]; then
+    pass "Health Endpoint Validation"
+else
+    echo "Health Endpoint Validation : SKIPPED / NOT CONFIGURED" >> "$RESULT_FILE"
+fi
+
+#
+# Summary
+#
+
+echo "" >> "$RESULT_FILE"
+echo "Overall Status : $OVERALL_STATUS" >> "$RESULT_FILE"
+
+cat "$RESULT_FILE"
+
+if [ "$OVERALL_STATUS" = "FAIL" ]; then
+    exit 1
+fi
